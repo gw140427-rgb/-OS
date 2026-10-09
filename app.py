@@ -8,7 +8,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ImageContent, TextContent
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -20,7 +19,7 @@ MAX_FRAMES = int(os.getenv("MAX_FRAMES", "6"))
 MAX_DOWNLOAD_MB = int(os.getenv("MAX_DOWNLOAD_MB", "80"))
 ALLOWED_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}
 
-mcp = FastMCP("TikTok Video Watch")
+mcp = FastMCP("TikTok Video Watch", host="0.0.0.0", port=10000)
 
 def validate_url(value: str) -> None:
     parsed = urlparse(value)
@@ -146,6 +145,4 @@ async def analyze_route(request: Request):
     except Exception as exc:
         return JSONResponse({"error": str(exc)[:800]}, status_code=422)
 
-app = mcp.streamable_http_app(
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
-)
+app = mcp.streamable_http_app()
