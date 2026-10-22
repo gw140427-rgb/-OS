@@ -1,0 +1,53 @@
+name: Build Android 13 GSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_large_build:
+        description: "Confirm the self-hosted runner has about 250 GB free disk and sufficient RAM"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: ${{ inputs.confirm_large_build }}
+    runs-on: [self-hosted, linux, x64, aosp-build]
+    timeout-minutes: 360
+    env:
+      ANDROID_BUILD_TOP: /work/aosp
+      AOSP_BRANCH: android-13.0.0_r1
+    steps:
+      - name: Check available disk space
+        run: |
+          set -euo pipefail
+          df -h /
+          AVAILABLE_GB=$(df -BG /work | awk 'NR==2 {gsub("G","",$4); print $4}')
+          if [ "${AVAILABLE_GB:-0}" -lt 200 ]; then
+            echo "Need at least 200 GB free on /work; found ${AVAILABLE_GB:-unknown} GB."
+            exit 1
+          fi
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl             zlib1g-dev libc6-dev-i386 libncurses-dev x11proto-core-dev libx11-dev             lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig             python3 python-is-python3
+          if ! command -v repo >/dev/null 2>&1; then
+            mkdir -p "$HOME/bin"
+            curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+            chmod a+x "$HOME/bin/repo"
+            echo "$HOME/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Build source-based Android 13 ARM64 system image
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          bash "$GITHUB_WORKSPACE/scripts/build-gsi.sh"
+      - name: Upload image and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: android13-aosp-arm64-gsi
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
